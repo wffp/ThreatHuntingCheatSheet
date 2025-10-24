@@ -33,6 +33,9 @@ This cheatsheet in more usefull when you don't access/not permited to use your t
 
 ```powershell
 Get-Childitem -Path "<Files_path>" -Include *.aspx,*.asp -Recurse | Select-String -Pattern "IOC_Pattern" | Select-Object LineNumber,FileName,Path,Pattern 
+
+#Full Command
+Get-Childitem -Path "<Files_path>" -Include *.aspx,*.ashx,*.ascx,*.asp,*.cs,*.asmx,*.asax,*.axd -Recurse | Select-String "System.IO","System.Diagnostics","System.Net","System.Web","System.Security","System.Reflection","Microsoft.AspNet","System.Text","System.Threading" | Select-Object LineNumber,FileName,Path,Pattern 
 ```
 
 _Recommended patterns for ebove command :_
@@ -40,6 +43,13 @@ _Recommended patterns for ebove command :_
 <Files_path> = IIS web hosted enviroment path
 
 IOC_Pattern  = cmd, System.Io, shell, password= , XOR, decode, base64, sha256, \\^, powershell, System.Diagnostics etc...
+
+```powershell
+#Full Command with patterns
+Get-Childitem -Path "<Files_path>" -Include *.aspx,*.ashx,*.ascx,*.asp,*.cs,*.asmx,*.asax,*.axd -Recurse | Select-String "System.IO","System.Diagnostics","System.Net","System.Web","System.Security","System.Reflection","Microsoft.AspNet","System.Text","System.Threading" | Select-Object LineNumber,FileName,Path,Pattern 
+``` 
+
+```
 
 Common webshell imports in .aspx (Use as IOC_pattern) : 
 
