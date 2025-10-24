@@ -107,7 +107,7 @@ _A Quick trick:_ you can use sort by "Access Modified" when viewing files by han
 | **`C:\Windows\SysWOW64`**                          | Used for 32-bit binaries on 64-bit systems; similar threats as System32, where malware may reside.    |
 | **`C:\Program Files\Microsoft Office\root\OfficeXX`** | Default installation path for Microsoft Outlook (replace "XX" with the version number, e.g., Office16 for Outlook 2016). |
 | **`C:\Program Files\Microsoft\Exchange\`**        | Default installation path for Microsoft Exchange Server.                                              |
-
+| **`C:\Windows\`**									| Malicious software often disguises itself as legitimate files here. |
 
 
 **Users and Groups information**
