@@ -49,8 +49,6 @@ IOC_Pattern  = cmd, System.Io, shell, password= , XOR, decode, base64, sha256, \
 Get-Childitem -Path "<Files_path>" -Include *.aspx,*.ashx,*.ascx,*.asp,*.cs,*.asmx,*.asax,*.axd -Recurse | Select-String "System.IO","System.Diagnostics","System.Net","System.Web","System.Security","System.Reflection","Microsoft.AspNet","System.Text","System.Threading" | Select-Object LineNumber,FileName,Path,Pattern 
 ``` 
 
-```
-
 Common webshell imports in .aspx (Use as IOC_pattern) : 
 
 | **Library/Namespace**                      | **Description**                                                                                   |
