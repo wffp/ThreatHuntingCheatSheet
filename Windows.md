@@ -1,4 +1,4 @@
-# ThreatHunting-CheatSheat For Windows
+# Detailed ThreatHunting-CheatSheat For Windows
 
 Simple usefull threat hunting cheat sheet for Windows environments, keep in mind these notes is usefull in newly enviroments not old windows versions.
 
@@ -40,11 +40,6 @@ _Recommended patterns for ebove command :_
 <Files_path> = IIS web hosted enviroment path
 
 IOC_Pattern  = cmd, System.Io, shell, password= , XOR, decode, base64, sha256, \\^, powershell, System.Diagnostics etc...
-
-```powershell
-#Full Command with patterns
-Get-Childitem -Path "<Files_path>" -Include *.aspx,*.ashx,*.ascx,*.asp,*.cs,*.asmx,*.asax,*.axd -Recurse | Select-String "System.IO","System.Diagnostics","System.Net","System.Web","System.Security","System.Reflection","Microsoft.AspNet","System.Text","System.Threading" | Select-Object LineNumber,FileName,Path,Pattern 
-``` 
 
 Common webshell imports in .aspx (Use as IOC_pattern) : 
 
@@ -91,7 +86,8 @@ Get-ChildItem "C:\Windows\system32\*" | ForEach-Object { try { Get-AuthenticodeS
 
 **recommendation:** check These pathes for suspicous files if you see some executables dlls check the sign
 
-_A Quick trick:_ you can use sort by "Access Modified" when viewing files by hand or script, many .dmp files like the ones mimikatz generates can found quickly because user often doesn't access these types of files. time is the key but keep in mind is not important in first look cause can be edited easily by attackers and should be checked more detailed in forensic and specific tools.
+**_A Quick trick:_** you can use sort by "Access Modified" when viewing files by hand or script, many .dmp files like the ones mimikatz generates can found quickly because user often doesn't access these types of files. time is the key but keep in mind is not important in first look cause can be edited easily by attackers and should be checked more detailed in forensic and specific tools.
+
 
 | **Directory**                                       | **Description**                                                                                         |
 |----------------------------------------------------|---------------------------------------------------------------------------------------------------------|
@@ -112,7 +108,7 @@ _A Quick trick:_ you can use sort by "Access Modified" when viewing files by han
 | **`C:\Windows\SysWOW64`**                          | Used for 32-bit binaries on 64-bit systems; similar threats as System32, where malware may reside.    |
 | **`C:\Program Files\Microsoft Office\root\OfficeXX`** | Default installation path for Microsoft Outlook (replace "XX" with the version number, e.g., Office16 for Outlook 2016). |
 | **`C:\Program Files\Microsoft\Exchange\`**        | Default installation path for Microsoft Exchange Server.                                              |
-| **`C:\Windows\`**									| Malicious software often disguises itself as legitimate files here. |
+
 
 
 **Users and Groups information**
@@ -136,8 +132,26 @@ Net user /domain <username>
 # show domain groups
 Net Groups /domain
 ```
+---
 
-**Checking Processes**
+### Checking Processes
+
+First We should Remember these Windows Core Processes:
+
+| Process                   | PID  | Function                                                   | Normal Parent            | Suspicious Signs                                                   |
+|---------------------------|------|-----------------------------------------------------------|--------------------------|-------------------------------------------------------------------|
+| **System**                | 4    | Manages system operations, kernel tasks, memory, resources | System Idle Process (0) | Different parent, multiple instances, PID other than 4            |
+| **smss.exe**              | N/A  | Creates user sessions; first user-mode process             | System (4)              | Multiple persistent instances, unusual parent                      |
+| **csrss.exe**             | N/A  | Manages GUI operations and system shutdown                  | smss.exe                | Different parent, multiple instances per session                   |
+| **wininit.exe**           | N/A  | Initializes system and starts services                      | smss.exe                | Different parent, multiple instances                                |
+| **winlogon.exe**          | N/A  | Manages user logon and loads profiles                      | smss.exe                | Different parent, multiple instances per session                   |
+| **lsass.exe**             | N/A  | Manages security policies and authentication                | wininit.exe             | Different parent, multiple instances, unusual outbound connections   |
+| **services.exe**          | N/A  | Manages Windows services                                    | wininit.exe             | Different parent, multiple instances                                |
+| **explorer.exe**          | N/A  | Provides Windows shell (desktop, Start Menu)               | userinit.exe            | Different parent, multiple instances, unusual locations            |
+| **svchost.exe**           | N/A  | Hosts multiple Windows services                              | services.exe            | Different parent, unusual command line arguments, unexpected connections |
+
+
+Usefull Commands for this part :
 ```powershell
 Get-process
 tasklist
@@ -157,10 +171,13 @@ common indicators for identifying suspicious processes in Windows using the `tas
 | **High I/O Operations**          | High disk input/output activity from a process may suggest unauthorized data exfiltration or system compromise.           |
 | **Multiple Instances**           | Multiple instances of the same process running simultaneously can be a sign of malware behavior.                         |
 
+---
 
-**Network Auditing**
+### Network Auditing
 
-You can use `Netstat -ano` command on powershell for check connections Established/listening ports and check IP addresses for suspicous connections,ports etc...
+```powershell
+Netstat -ano  # for check connections Established/listening ports and check IP addresses for suspicous connections,ports etc...
+```
 
 common indicators of suspicious connections that may warrant further investigation in a network environment:
 
@@ -178,14 +195,19 @@ common indicators of suspicious connections that may warrant further investigati
 | **Suspicious User-Agent Strings** | Unexpected or uncommon user-agent strings in HTTP traffic might indicate automated scripts or malware attempting to communicate. |
 
 
-**EventID**
+## Event IDs 
 
 Keep in mind This is one of the most important parts of threat hunting in windows evniroments.
+
+You can use tools like `DeepBlueCLI`/`APT-Hunter` for automated checking...
 
 ```powershell
 # Detecting RDP BruteForce using 4625 EventID from Security logs (Also check this on SIEM)
 Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} | Measure-Object
 Get-WinEvent -LogName Security -InstanceId 4625 | Select-Object * | Measure-Object
+
+# Filter by time
+Get-winEvent -FilterHashTable @{ logname="Security"; starttime="9/9/2021" endtime="9/10/2021" }
 
 # Check for encoded powershell commands
 Get-Winevent -LogName 'Windows Powershell' | Where-Object { $_.Message -match '(--EncodedCommand| -enc| FromBase64String| Encoded)' | Select-Object *
@@ -193,71 +215,281 @@ Get-Winevent -LogName 'Windows Powershell' | Where-Object { $_.Message -match '(
 # Check for script downloaders
 Get-winevent -LogName 'Windows Powershell' | Where-Object { $_.Message -match 'Invoke-WebRequest| Invoke-RestMethod| curl| wget' } | Select-Object *
 ```
-**Top Common EventIDs you can check :**
-
-| **EVENT ID** | **Description**                                                                                         |
-|--------------|---------------------------------------------------------------------------------------------------------|
-| `1100`       | The audit log was cleared.                                                                              |
-| `1102`       | The audit log was cleared.                                                                              |
-| `4103`       | The security event log was cleared.                                                                     |
-| `4104`       | A script block was logged.                                                                               |
-| `4105`       | A script block was executed.                                                                             |
-| `4106`       | Windows PowerShell received a suspicious command.                                                        |
-| `4624`       | An account was successfully logged on.                                                                    |
-| `4625`       | An account failed to log on.                                                                             |
-| `4634`       | An account was logged off.                                                                               |
-| `4648`       | A logon attempt was made using explicit credentials.                                                    |
-| `4672`       | Special privileges assigned to new logon.                                                               |
-| `4698`       | A scheduled task was created.                                                                            |
-| `4719`       | System audit policy was changed.                                                                         |
-| `4720`       | A user account was created.                                                                              |
-| `4722`       | A user account was enabled.                                                                              |
-| `4723`       | An attempt was made to change an account's password.                                                    |
-| `4724`       | An attempt was made to reset an account's password.                                                     |
-| `4725`       | A user account was disabled.                                                                             |
-| `4726`       | A user account was deleted.                                                                              |
-| `4728`       | A user was added to a group.                                                                             |
-| `4732`       | A member was added to a security-enabled local group.                                                    |
-| `4756`       | A security-enabled universal group was modified.                                                        |
-| `5140`       | A network share was accessed.                                                                            |
-| `5145`       | A network share object was accessed.                                                                     |
-| `5156`       | Windows Filtering Platform blocked a connection.                                                         |
-| `7045`       | A service was installed on the system.                                                                   |
-| `4656`       | A handle to an object was requested.                                                                    |
-| `4663`       | An attempt was made to access an object.                                                                |
-| `4702`       | A scheduled task was updated.                                                                            |
-| `4703`       | The permissions on an object were changed.                                                               |
-| `4704`       | A job was created.                                                                                      |
-| `4729`       | A member was removed from a security-enabled global group.                                              |
-| `4767`       | A user account's password was changed.                                                                  |
-| `4871`       | A security-enabled global group was modified.                                                           |
-| `4740`       | A user account was locked out.                                                                           |
-| `4735`       | A security-enabled local group was changed.                                                             |
-| `4731`       | A security-enabled local group was created.                                                              |
-| `4647`       | User initiated logoff.                                                                                  |
 
 
-**More in SYSMON**
 
-| **Sysmon EVENT ID** | **Description**                                                                                         |
-|----------------------|---------------------------------------------------------------------------------------------------------|
-| `1`                  | Process creation, useful for detecting unusual or malicious processes.                                  |
-| `3`                  | Network connection detected, valuable for identifying unauthorized network activity.                    |
-| `5`                  | Process terminated, important for monitoring unexpected terminations.                                   |
-| `6`                  | Driver loaded, useful for detecting malicious drivers.                                                 |
-| `7`                  | Image loaded, helps identify suspicious or malicious DLLs.                                             |
-| `11`                 | File created, crucial for detecting suspicious file creation.                                          |
-| `12`                 | Registry object added or modified, useful for identifying persistence mechanisms and configuration changes. |
-| `15`                 | File deleted, important for tracking suspicious deletions.                                             |
-| `21`                 | Process command line changed, useful for identifying attempts to modify running command lines.         |
-| `22`                 | Driver unloaded, helpful for monitoring the removal of potentially malicious drivers.                   |
-| `23`                 | Process tampering, indicates unauthorized changes to processes.                                        |
-| `24`                 | DNS query, valuable for identifying suspicious DNS activity, such as lookups related to C2 servers.   |
+## **Top Common Event-IDs you check:**
+
+### **1. Logon/Logoff Events**
+
+| **EVENT ID** | **Description**                                                             |
+| ------------ | --------------------------------------------------------------------------- |
+| `4624`       | An account was successfully logged on.                                      |
+| `4625`       | An account failed to log on.                                                |
+| `4634`       | An account was logged off.                                                  |
+| `4647`       | User initiated logoff.                                                      |
+| `4648`       | A logon attempt was made using explicit credentials.                        |
+| `4672`       | Special privileges assigned to new logon.                                   |
+| `4740`       | A user account was locked out.                                              |
+| `4771`       | Kerberos pre-authentication failed.                                         |
+| `4776`       | The domain controller attempted to validate the credentials for an account. |
 
 ---
 
-**Note that You can Check Many scenarios using these mentioned commands, as a hacker/hunter use your Creativity here too :)**
+### **Types of Logon Events (Event-ID 4624)**
 
+| **Logon Type** | **Description**                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `2`            | **Interactive** – A user logged on locally at the console (direct logon).                                               |
+| `3`            | **Network** – A user logged on remotely over the network (e.g., file sharing).                                          |
+| `4`            | **Batch** – A logon by a scheduled task (e.g., Task Scheduler).                                                         |
+| `5`            | **Service** – A service started by the Service Control Manager (SCM).                                                   |
+| `7`            | **Unlock** – A user unlocked a workstation after it was locked.                                                         |
+| `8`            | **NetworkCleartext** – A logon that occurs over a network connection (cleartext password sent).                         |
+| `9`            | **NewCredentials** – A logon type used when credentials are passed in for an existing session (e.g., Run As).           |
+| `10`           | **RemoteInteractive** – A logon from a Remote Desktop session.                                                          |
+| `11`           | **CachedInteractive** – A logon attempt when a user is logging in with cached credentials (when the DC is unavailable). |
+
+---
+
+### **Common Logon Failure Status Codes (Event-ID 4625)**
+
+| **Status Code** | **Description**                                                                |
+| --------------- | ------------------------------------------------------------------------------ |
+| `0xC0000064`    | **The specified user does not exist.**                                         |
+| `0xC000006A`    | **The specified user account has been disabled.**                              |
+| `0xC0000071`    | **The account is currently locked out and may not be logged on to.**           |
+| `0xC000006D`    | **The attempted logon is for an account that is currently disabled.**          |
+| `0xC0000133`    | **The time zone is not synchronized with the client computer.**                |
+| `0xC0000234`    | **The user account has expired.**                                              |
+| `0xC0000225`    | **The account has expired, or the user has failed to log on for a long time.** |
+| `0xC0000072`    | **Account is locked.**                                                         |
+| `0xC0000193`    | **The user’s password must be changed.**                                       |
+| `0xC0000300`    | **Logon attempt from an unsupported workstation.**                             |
+| `0xC000000F`    | **Invalid logon type.**                                                        |
+| `0xC0000192`    | **The user does not have the necessary privileges to log on.**                 |
+| `0xC000018C`    | **The password has expired.**                                                  |
+| `0xC0000205`    | **The account has not been initialized or registered with the domain.**        |
+| `0xC0000070`    | **The account is locked due to multiple failed logon attempts.**               |
+
+---
+
+### **2. Account Management Events**
+
+| **EVENT ID** | **Description**                                            |
+| ------------ | ---------------------------------------------------------- |
+| `4720`       | A user account was created.                                |
+| `4722`       | A user account was enabled.                                |
+| `4723`       | An attempt was made to change an account's password.       |
+| `4724`       | An attempt was made to reset an account's password.        |
+| `4725`       | A user account was disabled.                               |
+| `4726`       | A user account was deleted.                                |
+| `4728`       | A user was added to a group.                               |
+| `4732`       | A member was added to a security-enabled local group.      |
+| `4729`       | A member was removed from a security-enabled global group. |
+| `4735`       | A security-enabled local group was changed.                |
+| `4731`       | A security-enabled local group was created.                |
+| `4767`       | A user account's password was changed.                     |
+| `4871`       | A security-enabled global group was modified.              |
+
+---
+
+### **3. Object Access Events**
+
+| **EVENT ID** | **Description**                          |
+| ------------ | ---------------------------------------- |
+| `4656`       | A handle to an object was requested.     |
+| `4663`       | An attempt was made to access an object. |
+| `5140`       | A network share was accessed.            |
+| `5145`       | A network share object was accessed.     |
+| `4616`       | The audit log was cleared.               |
+
+---
+
+### **4. System/Service Events**
+
+| **EVENT ID** | **Description**                                   |
+| ------------ | ------------------------------------------------- |
+| `1100`       | The audit log was cleared.                        |
+| `1102`       | The audit log was cleared.                        |
+| `4103`       | The security event log was cleared.               |
+| `4104`       | A script block was logged.                        |
+| `4105`       | A script block was executed.                      |
+| `4106`       | Windows PowerShell received a suspicious command. |
+| `4719`       | System audit policy was changed.                  |
+| `4698`       | A scheduled task was created.                     |
+| `4702`       | A scheduled task was updated.                     |
+| `4703`       | The permissions on an object were changed.        |
+| `4704`       | A job was created.                                |
+| `7045`       | A service was installed on the system.            |
+| `7034`       | A service terminated unexpectedly.                |
+| `104`        | Audit log was cleared.                            |
+
+---
+
+### **5. Network/Connection Events**
+
+| **EVENT ID** | **Description**                                  |
+| ------------ | ------------------------------------------------ |
+| `5156`       | Windows Filtering Platform blocked a connection. |
+| `5140`       | A network share was accessed.                    |
+| `5145`       | A network share object was accessed.             |
+
+---
+
+### **6. Windows Defender Events**
+
+| **EVENT ID** | **Description**                                              |
+| ------------ | ------------------------------------------------------------ |
+| `5001`       | Windows Defender Antivirus has started.                      |
+| `5002`       | Windows Defender Antivirus real-time protection has stopped. |
+| `5004`       | Windows Defender Antivirus detected a threat.                |
+| `5007`       | Windows Defender Antivirus completed a scan.                 |
+| `5010`       | Windows Defender Antivirus quarantined a threat.             |
+| `5012`       | Windows Defender Antivirus restored a quarantined threat.    |
+
+---
+
+### **7. Registry Manipulation Events**
+
+| **EVENT ID** | **Description**                                                                                                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `4657`       | **A registry value was modified** – This event logs when a registry value is changed, created, or deleted.                                                                                                         |
+| `4663`       | **An attempt was made to access an object** – This event logs when a registry key (or value) is accessed, which can include both reads and writes to registry keys.                                                |
+| `4660`       | **An object was deleted** – If a registry key or value is deleted, this event will be logged.                                                                                                                      |
+| `4703`       | **Permissions on an object were changed** – If the permissions of a registry key are modified, this event logs the change.                                                                                         |
+| `4722`       | **A user account was enabled** – Although this event is primarily related to user account status, it can indicate a change in system settings, which may indirectly include registry changes that enable accounts. |
+| `5145`       | **A network share object was accessed** – While more related to file system shares, it can also indirectly affect registry keys tied to network settings or resources.                                             |
+
+---
+
+### **8. Time Manipulation Events (Event ID 1)**
+
+| **EVENT ID** | **Description**                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| `1`          | **System time was changed** – This event is logged whenever a time change occurs in the system |
+
+
+clock, often used by attackers to alter the system time to evade logging and audits. |
+
+---
+
+### **9. SYSMON Events**
+
+| **Sysmon EVENT ID** | **Description**                                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `1`                 | Process creation, useful for detecting unusual or malicious processes.                                      |
+| `3`                 | Network connection detected, valuable for identifying unauthorized network activity.                        |
+| `5`                 | Process terminated, important for monitoring unexpected terminations.                                       |
+| `6`                 | Driver loaded, useful for detecting malicious drivers.                                                      |
+| `7`                 | Image loaded, helps identify suspicious or malicious DLLs.                                                  |
+| `11`                | File created, crucial for detecting suspicious file creation.                                               |
+| `12`                | Registry object added or modified, useful for identifying persistence mechanisms and configuration changes. |
+| `15`                | File deleted, important for tracking suspicious deletions.                                                  |
+| `21`                | Process command line changed, useful for identifying attempts to modify running command lines.              |
+| `22`                | Driver unloaded, helpful for monitoring the removal of potentially malicious drivers.                       |
+| `23`                | Process tampering, indicates unauthorized changes to processes.                                             |
+| `24`                | DNS query, valuable for identifying suspicious DNS activity, such as lookups related to C2 servers.         |
+
+
+---
+
+## Windows USB Device Profiling
+
+### 1. Registry Keys for USB Device Profiling
+
+| **Registry Key Path**                                       | **Description**                                                                                                  |
+|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USB`       | Contains information about USB devices connected to the system, including device IDs, device names, and configuration. |
+| `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\USBSTOR` | Manages the USB storage drivers and stores information about USB storage devices.                               |
+| `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USB\Vid_xxxx&Pid_xxxx` | Device-specific entries for USB devices (e.g., vendor ID and product ID), used to identify the device.         |
+| `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\USB`   | Stores information about USB device drivers and services (e.g., USB controllers).                               |
+| `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USB\Root_Hub` | Contains registry keys for USB hubs, which provide information on the connected devices.                         |
+| `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\DevicePath` | Specifies paths for devices, including USB devices, useful for identifying storage device locations.           |
+| `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2` | Tracks the device mounts for USB devices, such as when a USB flash drive or external drive is plugged in.       |
+
+## 2. USB Shell Items
+
+| **Shell Item**                                         | **Description**                                                                                          |
+|--------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `Computer\HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2` | Stores history and metadata of connected USB storage devices (e.g., USB sticks, external drives).         |
+| `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist` | Tracks USB devices and their usage, as well as other user activities.                                     |
+| `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs` | Tracks recently opened documents, including those accessed from USB devices.                             |
+| `Shell:::{b6e5a93c-4d34-4bc3-bbe0-dcd3a64bdb26}`       | The shell object for external USB storage devices, especially if the device is connected via USB ports.  |
+
+## 3. USB Device Event Logs
+
+| **Event ID** | **Description**                                                                                                           |
+|--------------|---------------------------------------------------------------------------------------------------------------------------|
+| `20001`      | A USB device has been inserted into the system (DeviceConnect). This event logs when a USB device is connected to the system. |
+| `20003`      | A USB device has been removed from the system (DeviceDisconnect). This event logs when a USB device is removed from the system. |
+| `7000`       | A driver for the USB device could not be loaded, or there is a driver issue. Logs error related to USB device connectivity. |
+| `7001`       | A USB device driver has successfully loaded.                                                                              |
+| `2102`       | A USB device driver has been removed from the system. Logs when a USB device’s driver is uninstalled or unregistered.     |
+| `4100`       | Windows PowerShell script or a similar script has executed USB-related commands (script execution).                        |
+| `104`        | System audit logs cleared, which may involve the clearing of USB device history for malicious activity.                   |
+| `4001`       | Logs failed attempts to install or configure a USB device (likely indicating unauthorized device installation attempts).   |
+
+## 4. USB Event Logs in Windows Event Viewer
+
+USB-related events are typically logged under **System**, **Security**, or **Application** logs. You can use the **Event Viewer** to check for events related to USB devices.
+
+| **Log Category**    | **Event ID** | **Description**                                                                                                      |
+|---------------------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| **System**          | `20001`      | USB device insertion event, indicating when a device has been connected to a USB port.                               |
+| **System**          | `20003`      | USB device removal event, logged when a USB device is disconnected from the system.                                   |
+| **System**          | `7011`       | Timeout error related to USB device initialization or response issues.                                               |
+| **System**          | `7036`       | A USB device driver or service has successfully started.                                                              |
+| **Security**        | `4624`       | Successful logon event (may contain USB-related logon if a USB device was used for authentication).                    |
+| **Security**        | `4625`       | Failed logon event (may be logged if a USB security token or smart card is used and fails).                           |
+| **Application**     | `1001`       | Application event (can be logged when a program interacts with a USB device).                                         |
+| **Application**     | `1002`       | Application crash event (often involving interaction with USB-connected devices).                                     |
+
+## 5. PowerShell Cmdlets for USB Device Profiling
+
+Using PowerShell, you can profile and manage USB devices. Here are some useful cmdlets for USB device management:
+
+```powershell
+# Retrieve all USB hubs
+Get-WmiObject -Class Win32_USBHub
+
+# Retrieve all devices, including USB devices
+Get-WmiObject -Class Win32_PnPEntity
+
+# Retrieve USB controllers and their associated device IDs
+Get-WmiObject -Class Win32_USBControllerDevice
+
+# Retrieve detailed information about the USB devices connected to the system
+Get-WmiObject -Class Win32_USBDevice
+
+# Retrieve USB-related events from the System log
+Get-EventLog -LogName System -Source USB
+```
+
+## 6. USB Device Driver Information (via Device Manager)
+
+You can also gather USB device details through **Device Manager** for detailed information:
+
+| **Location**       | **Description**                                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Device Manager** | Under **Universal Serial Bus Controllers**, you will find information about each connected USB device and hub.                   |
+| **Device Manager** | Right-click on a device and select **Properties** to see detailed information such as **Driver**, **Resources**, and **Events**. |
+
+## 7. USB Device GUIDs for Profiling
+
+You can also use **GUIDs (Globally Unique Identifiers)** for device classes to better profile USB devices:
+
+| **Device Class** | **GUID**                                 |
+| ---------------- | ---------------------------------------- |
+| **USB Devices**  | `{36FC9E60-C465-11CF-8056-444553540000}` |
+| **USB Storage**  | `{A5DCBF10-6530-11D2-901F-00C04FB951ED}` |
+| **USB Hubs**     | `{F2A1B809-5E5A-464E-BD4E-2107F85D9A35}` |
+
+---
+
+Note that You can Check Many scenarios using these mentioned commands, as a hacker/hunter use your Creativity here too...
+
+**GoodLuck!** **:)**
 
 
 
