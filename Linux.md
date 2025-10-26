@@ -178,6 +178,12 @@ ausearch -sc connect
 
 ## **Miscellaneous**
 
+* **Check kernel modules:**
+  ```bash
+  # list loaded kernel modules
+  lsmod
+  ```
+
 * **File Integrity:**
 
   ```bash
